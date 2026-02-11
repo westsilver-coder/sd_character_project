@@ -1,0 +1,29 @@
+# SD Style 3D Character Generator - Dependencies
+# Python 3.10+, conda recommended
+
+# Core ML / Diffusion
+torch>=2.0.0
+diffusers>=0.25.0
+transformers>=4.35.0
+accelerate>=0.25.0
+
+# Feature extraction
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+scikit-learn>=1.3.0
+Pillow>=10.0.0
+
+# 3D & Mesh
+trimesh>=4.0.0
+numpy>=1.24.0
+scipy>=1.11.0
+
+# 2D → 3D (TripoSR dependencies)
+rembg>=2.0.0
+
+# Rendering & Video
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
+
+# Utilities
+tqdm>=4.66.0
