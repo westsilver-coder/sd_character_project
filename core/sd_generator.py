@@ -12,12 +12,12 @@ from PIL import Image
 
 
 # Default SDXL model (can be overridden for local/finetuned)
-DEFAULT_MODEL_ID = "stabilityai/stable-diffusion-xl-base-1.0"
+DEFAULT_MODEL_ID = "runwayml/stable-diffusion-v1-5"
 DEFAULT_VAE_ID = "madebyollin/sdxl-vae-fp16-fix"
 
 # Generation defaults
-DEFAULT_HEIGHT = 1024
-DEFAULT_WIDTH = 768  # portrait-ish for full body
+DEFAULT_HEIGHT = 512
+DEFAULT_WIDTH = 512  # portrait-ish for full body
 DEFAULT_STEPS = 30
 DEFAULT_CFG = 7.5
 DEFAULT_SEED = 42
