@@ -1,24 +1,21 @@
 """
-2D SD-style character image generation using Stable Diffusion (SDXL).
+2D SD-style character image generation using Stable Diffusion 1.5.
 Input: text prompt (from prompt_generator).
 Output: PNG in generated_2d/
+RTX 2080Ti (11GB) 안정 실행: 512x512, attention_slicing.
 """
 from pathlib import Path
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionXLPipeline, AutoencoderKL
+from diffusers import StableDiffusionPipeline
 from PIL import Image
 
 
-# Default SDXL model (can be overridden for local/finetuned)
 DEFAULT_MODEL_ID = "runwayml/stable-diffusion-v1-5"
-DEFAULT_VAE_ID = "madebyollin/sdxl-vae-fp16-fix"
-
-# Generation defaults
 DEFAULT_HEIGHT = 512
-DEFAULT_WIDTH = 512  # portrait-ish for full body
-DEFAULT_STEPS = 30
+DEFAULT_WIDTH = 512
+DEFAULT_STEPS = 25
 DEFAULT_CFG = 7.5
 DEFAULT_SEED = 42
 
@@ -30,24 +27,16 @@ def get_device() -> str:
 
 def load_pipeline(
     model_id: str = DEFAULT_MODEL_ID,
-    vae_id: Optional[str] = DEFAULT_VAE_ID,
     device: Optional[str] = None,
-    torch_dtype: Optional[torch.dtype] = None,
-):
-    """Load SDXL pipeline. Uses fp16 on GPU when available."""
+) -> StableDiffusionPipeline:
+    """Load SD 1.5 pipeline. fp16, cuda, attention_slicing for RTX 2080Ti."""
     device = device or get_device()
-    dtype = torch_dtype or (torch.float16 if device == "cuda" else torch.float32)
-    pipe = StableDiffusionXLPipeline.from_pretrained(
+    pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
-        torch_dtype=dtype,
-        use_safetensors=True,
-        variant="fp16" if dtype == torch.float16 else None,
+        torch_dtype=torch.float16,
     )
-    if vae_id:
-        pipe.vae = AutoencoderKL.from_pretrained(vae_id, torch_dtype=dtype)
     pipe = pipe.to(device)
-    if device == "cuda":
-        pipe.enable_attention_slicing()
+    pipe.enable_attention_slicing()
     return pipe
 
 
@@ -64,7 +53,7 @@ def generate(
     num_inference_steps: int = DEFAULT_STEPS,
     guidance_scale: float = DEFAULT_CFG,
     seed: Optional[int] = DEFAULT_SEED,
-    pipeline=None,
+    pipeline: Optional[StableDiffusionPipeline] = None,
 ) -> str:
     """
     Generate one SD-style 2D character image and save to output_path.
@@ -82,7 +71,7 @@ def generate(
         generator = torch.Generator(device=device).manual_seed(seed)
 
     image: Image.Image = pipeline(
-        prompt=prompt,
+        prompt,
         negative_prompt=negative_prompt,
         height=height,
         width=width,
@@ -117,7 +106,6 @@ if __name__ == "__main__":
     import sys
     from core.prompt_generator import generate_prompt
 
-    # Example: generate from features.json
     features_path = sys.argv[1] if len(sys.argv) > 1 else "features/features.json"
     out_dir = sys.argv[2] if len(sys.argv) > 2 else "generated_2d"
     prompt = generate_prompt(features_path)

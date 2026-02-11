@@ -19,7 +19,7 @@ input photo → feature extraction → features.json
 
 1. **Feature Extraction**: 얼굴형, 머리색, 피부톤, 안경, 머리 길이, **의상 색상·종류**(상의색, 하의색, dress/skirt/pants 등) → `features/features.json`
 2. **Prompt Generation**: 특징 기반 SD 프롬프트 자동 생성 (규칙 기반)
-3. **2D 생성**: SDXL로 전신 SD 스타일 이미지 → `generated_2d/`
+3. **2D 생성**: Stable Diffusion 1.5로 전신 SD 스타일 이미지 → `generated_2d/` (512×512, RTX 2080Ti 안정)
 4. **2D→3D**: 이미지 → mesh (.obj). TripoSR 연동 시 실제 복원, 없으면 placeholder
 5. **SD 변형**: head scale 1.5~1.7, body scale 0.6~0.8 (geometry 수정)
 6. **Turntable**: 360° 회전 mp4 → `renders/`
@@ -35,7 +35,7 @@ input photo → feature extraction → features.json
 | **1** | `main.py` | 전체 단계(1→2→…→6)와 입출력 경로 한눈에 파악 |
 | **2** | `core/feature_extractor.py` | 입력 사진 → 얼굴 bbox, 머리/피부/의상 색, 안경/머리길이, 의상 종류 → `features.json` |
 | **3** | `core/prompt_generator.py` | `features.json` → 규칙으로 SD용 프롬프트 문자열 생성 |
-| **4** | `core/sd_generator.py` | 프롬프트 → SDXL로 2D 전신 SD 캐릭터 이미지 생성 |
+| **4** | `core/sd_generator.py` | 프롬프트 → SD 1.5로 2D 전신 SD 캐릭터 이미지 생성 (512×512) |
 | **5** | `core/mesh_generator.py` | 2D 이미지 → TripoSR(선택) 또는 placeholder → .obj mesh |
 | **6** | `core/deform_sd.py` | mesh를 head/body 구간으로 나누어 SD 비율(헤드 확대, 바디 축소) 적용 |
 | **7** | `core/renderer.py` | mesh 360° 회전 프레임 생성 → imageio로 mp4 저장 |
@@ -53,7 +53,7 @@ input photo → feature extraction → features.json
 - **1장**만 사용합니다. (전신/정면 필수 아님)
 - **얼굴이 나온 사진**이면 됩니다. Feature extraction이 **얼굴 영역**을 기준으로 하므로, 전신이 아니어도 됩니다.
 - **전신이 보이면** 상의/하의 색상과 의상 종류(원피스·치마·바지 등)를 추출해 프롬프트에 반영합니다. 상반신만 있으면 상의 색만 쓰고 `top_only`로 처리됩니다.
-- 단, **2D 생성 단계(SDXL)**는 “full body” 프롬프트로 전신 캐릭터를 그리므로, 입력이 상반신/얼굴만 있어도 **출력만 전신**이 됩니다.
+- 단, **2D 생성 단계(SD 1.5)**는 “full body” 프롬프트로 전신 캐릭터를 그리므로, 입력이 상반신/얼굴만 있어도 **출력만 전신**이 됩니다.
 
 ### 추천 조건 (결과 품질을 위해)
 
@@ -171,7 +171,7 @@ python -m core.renderer generated_3d/character_sd.obj renders/turntable.mp4
 |------|------------|
 | 특징 추출 | mediapipe, opencv-python, scikit-learn |
 | 프롬프트 | 규칙 기반 (JSON → 문자열) |
-| 2D 생성 | diffusers (SDXL), torch, transformers, accelerate |
+| 2D 생성 | diffusers (SD 1.5), torch, transformers, accelerate |
 | 2D→3D | TripoSR(선택) / trimesh placeholder |
 | 3D 변형/렌더 | trimesh, imageio, imageio-ffmpeg |
 

@@ -1,7 +1,8 @@
 # SD Style 3D Character Generator - Dependencies
 # Python 3.10+, conda recommended
+# 2D 생성: Stable Diffusion 1.5 (runwayml/stable-diffusion-v1-5)
 
-# Core ML / Diffusion
+# Core ML / Diffusion (SD 1.5)
 torch>=2.0.0
 diffusers>=0.25.0
 transformers>=4.35.0

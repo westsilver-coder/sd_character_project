@@ -1,6 +1,6 @@
 """
 Rule-based prompt generation from extracted features (features.json).
-Produces a single string suitable for Stable Diffusion (SDXL) to generate
+Produces a single string suitable for Stable Diffusion (SD 1.5) to generate
 a cute SD-style full-body 3D character.
 """
 import json
