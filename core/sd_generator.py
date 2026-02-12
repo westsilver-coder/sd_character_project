@@ -29,15 +29,23 @@ def load_pipeline(
     model_id: str = DEFAULT_MODEL_ID,
     device: Optional[str] = None,
 ) -> StableDiffusionPipeline:
-    """Load SD 1.5 pipeline. fp16, cuda, attention_slicing for RTX 2080Ti."""
     device = device or get_device()
+
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
         torch_dtype=torch.float16,
+        safety_checker=None,
+        local_files_only=True,
     )
+
     pipe = pipe.to(device)
+
+    # RTX 2080Ti 안정 세팅
     pipe.enable_attention_slicing()
+    pipe.enable_vae_slicing()
+
     return pipe
+
 
 
 def generate(
