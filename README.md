@@ -146,6 +146,16 @@ python -m core.renderer generated_3d/character_sd.obj renders/turntable.mp4
 
 ### 옵션 (main.py)
 
+**성별·의상·헤어 (사진이 애매할 때 지정)**
+
+- `--gender {male,female,person}` : 캐릭터 성별. **필수 지정 권장** (사진으로 추정하지 않음). 기본: person
+- `--clothing-type {auto,dress,skirt,pants,shorts,top_only}` : 의상 종류. auto=사진에서 추출
+- `--upper-color`, `--lower-color` : 상의/하의 색 (white, black, navy, blue 등)
+- `--hair-length {auto,short,medium,long}` : 머리 길이. auto=사진에서 추출
+- `--hair-color` : 머리 색 (black, dark_brown, brown, blonde, red, gray 등)
+
+**파이프라인**
+
 - `--no-sd` : 2D 생성 생략 (이미 있는 `generated_2d/character.png` 사용)
 - `--no-3d` : 2D→3D 생략
 - `--no-deform` : SD 비율 변형 생략

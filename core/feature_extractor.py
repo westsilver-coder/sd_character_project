@@ -295,10 +295,10 @@ def _infer_clothing_type(
     lower_bgr: np.ndarray | None,
 ) -> str:
     """
-    Infer clothing type: dress, skirt, pants, shorts, top_only, unknown.
-    - 상하의 색이 비슷하고 하반신이 보이면 dress.
-    - 하반신이 안 보이면 top_only.
-    - 상하 색이 다르면 하의 형태 추정: 하단 폭이 넓으면 skirt, 아니면 pants.
+    Infer clothing type: dress, skirt, pants, shorts, top_only.
+    - dress: 상하 색이 거의 동일하고, 위아래 경계가 분리되지 않은 경우에만 (엄격).
+    - skirt: 하의 영역이 충분히 길어서 다리가 보일 수 있을 때만 (다리 노출 가능).
+    - 모르겠으면 pants 통일.
     """
     x, y, bw, bh = face_bbox
     h, w = image.shape[:2]
@@ -306,24 +306,22 @@ def _infer_clothing_type(
     if torso_bottom >= h - 30:
         return "top_only"
     if lower_bgr is None:
-        return "unknown"
-    # Same color → one-piece / dress
-    dist = _color_distance_bgr(upper_bgr, lower_bgr)
-    if dist < 45:
-        return "dress"
-    # Two pieces: skirt vs pants by lower region aspect (skirt often wider at bottom)
+        return "pants"
     lower_y0 = torso_bottom
     lower_y1 = h
-    mid_y = (lower_y0 + lower_y1) // 2
-    # 상단 절반 vs 하단 절반의 평균 폭(에지/색 영역) 대신, 단순히 이미지 비율 사용
-    # 세로로 긴 이미지에서 하단이 더 넓게 퍼져 있으면 치마에 가깝다고 가정
     lower_h = lower_y1 - lower_y0
     lower_w = w
-    aspect = lower_w / max(lower_h, 1)
-    if aspect > 1.1:
-        return "skirt"
-    # 짧은 하의면 shorts
-    if lower_h < bh * 1.2:
+    # dress: 색이 거의 동일할 뿐 아니라, 상하가 분리되지 않은 느낌일 때만 (엄격)
+    dist = _color_distance_bgr(upper_bgr, lower_bgr)
+    if dist < 22 and lower_h >= bh * 2.0:
+        return "dress"
+    # skirt: 하의 구간이 길어서 치마 아래 다리가 보일 수 있을 때만 (다리 노출)
+    if lower_h >= bh * 2.2:
+        aspect = lower_w / max(lower_h, 1)
+        if aspect > 1.05:
+            return "skirt"
+    # 짧은 하의
+    if lower_h < bh * 1.3:
         return "shorts"
     return "pants"
 

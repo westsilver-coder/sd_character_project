@@ -52,10 +52,7 @@ def generate(
     prompt: str,
     output_path: str | Path,
     *,
-    negative_prompt: str = (
-        "ugly, blurry, low quality, distorted, deformed, "
-        "multiple characters, cropped, bad anatomy, text, watermark"
-    ),
+    negative_prompt: str | None = None,
     height: int = DEFAULT_HEIGHT,
     width: int = DEFAULT_WIDTH,
     num_inference_steps: int = DEFAULT_STEPS,
@@ -69,6 +66,10 @@ def generate(
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if negative_prompt is None:
+        from core.prompt_generator import get_negative_prompt
+        negative_prompt = get_negative_prompt()
 
     device = get_device()
     if pipeline is None:

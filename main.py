@@ -28,10 +28,17 @@ def run_pipeline(
     skip_render: bool = False,
     triposr_script: str | None = None,
     seed: int = 42,
+    *,
+    gender: str = "person",
+    clothing_type: str | None = None,
+    upper_color: str | None = None,
+    lower_color: str | None = None,
+    hair_length: str | None = None,
+    hair_color: str | None = None,
 ) -> dict:
     """
     Run full pipeline: photo → features → prompt → 2D → 3D → SD deform → turntable.
-    Returns dict with paths of generated files.
+    gender/의상/헤어는 CLI에서 지정. 지정 안 하면 사진 추출값 사용(auto).
     """
     from core.feature_extractor import extract_and_save
     from core.prompt_generator import generate_prompt
@@ -52,8 +59,19 @@ def run_pipeline(
     features_path = extract_and_save(str(input_photo), features_dir)
     result["features"] = features_path
 
-    # 2) Prompt generation
-    prompt = generate_prompt(features_path)
+    # 2) Prompt generation (CLI 옵션으로 덮어쓰기)
+    overrides = {"gender": gender}
+    if clothing_type is not None and clothing_type != "auto":
+        overrides["clothing_type"] = clothing_type
+    if upper_color is not None:
+        overrides["clothing_upper_color"] = upper_color
+    if lower_color is not None:
+        overrides["clothing_lower_color"] = lower_color
+    if hair_length is not None and hair_length != "auto":
+        overrides["hair_length"] = hair_length
+    if hair_color is not None:
+        overrides["hair_color"] = hair_color
+    prompt = generate_prompt(features_path, overrides)
     result["prompt"] = prompt
 
     # 3) 2D SD character
@@ -96,7 +114,7 @@ def run_pipeline(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="사진 기반 SD 스타일 3D 캐릭터 자동 생성"
+        description="사진 기반 SD 스타일 3D 캐릭터 자동 생성. 성별·의상·헤어는 옵션으로 지정."
     )
     parser.add_argument(
         "input_photo",
@@ -104,6 +122,46 @@ def main():
         default=ROOT / "input" / "user_photo.png",
         help="입력 인물 사진 경로",
     )
+    # 성별 (필수 지정 권장. 사진으로 추정하지 않음)
+    parser.add_argument(
+        "--gender",
+        choices=["male", "female", "person"],
+        default="person",
+        help="캐릭터 성별 (male/female/person). 기본: person",
+    )
+    # 의상 옵션 (사진이 애매할 때 지정)
+    parser.add_argument(
+        "--clothing-type",
+        choices=["auto", "dress", "skirt", "pants", "shorts", "top_only"],
+        default="auto",
+        help="의상 종류. auto=사진에서 추출",
+    )
+    parser.add_argument(
+        "--upper-color",
+        type=str,
+        default=None,
+        help="상의 색 (white, black, navy, blue, red, gray 등). 미지정 시 추출값 사용",
+    )
+    parser.add_argument(
+        "--lower-color",
+        type=str,
+        default=None,
+        help="하의 색. 미지정 시 추출값 사용",
+    )
+    # 헤어 옵션
+    parser.add_argument(
+        "--hair-length",
+        choices=["auto", "short", "medium", "long"],
+        default="auto",
+        help="머리 길이. auto=사진에서 추출",
+    )
+    parser.add_argument(
+        "--hair-color",
+        type=str,
+        default=None,
+        help="머리 색 (black, dark_brown, brown, blonde, red, gray 등). 미지정 시 추출값 사용",
+    )
+    # 파이프라인 스킵
     parser.add_argument("--no-sd", action="store_true", help="2D 생성 생략 (기존 이미지 사용)")
     parser.add_argument("--no-3d", action="store_true", help="2D→3D 변환 생략")
     parser.add_argument("--no-deform", action="store_true", help="SD 비율 변형 생략")
@@ -120,6 +178,12 @@ def main():
         skip_render=args.no_render,
         triposr_script=args.triposr,
         seed=args.seed,
+        gender=args.gender,
+        clothing_type=args.clothing_type,
+        upper_color=args.upper_color,
+        lower_color=args.lower_color,
+        hair_length=args.hair_length,
+        hair_color=args.hair_color,
     )
     print("Pipeline finished.")
     for k, v in result.items():
