@@ -8,7 +8,7 @@ from typing import Optional
 
 import torch
 from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
-from PIL import Image
+from PIL import Image, ImageOps
 
 DEFAULT_MODEL_ID = "runwayml/stable-diffusion-v1-5"
 DEFAULT_HEIGHT = 512
@@ -63,11 +63,12 @@ def _preprocess_init_image(
     width: int = DEFAULT_WIDTH,
     height: int = DEFAULT_HEIGHT,
 ) -> Image.Image:
-    """입력 사진을 512x512로 맞춤. 중앙 기준 크롭 후 리사이즈해서 얼굴이 들어가게."""
+    """입력 사진을 512x512로 맞춤. EXIF 방향 보정 후 중앙 크롭."""
     path = Path(image_path)
     if not path.exists():
         raise FileNotFoundError(f"Init image not found: {path}")
     img = Image.open(path).convert("RGB")
+    img = ImageOps.exif_transpose(img)  # EXIF 방향 적용 (옆으로 돌아간 사진 방지)
     w, h = img.size
     if w == width and h == height:
         return img

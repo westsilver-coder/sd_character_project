@@ -33,7 +33,7 @@ AGE_PROMPT = {
 }
 
 # 얼굴: 형태 구별 안 함, 예쁘게/잘 나오게
-FACE_PROMPT = "pretty face, well-proportioned facial features"
+FACE_PROMPT = "well-organized face, well-proportioned facial features"
 
 # 눈: 모르면 갈색 기본
 EYE_PROMPT = "brown eyes"

@@ -28,7 +28,7 @@ def run_pipeline(
     skip_render: bool = False,
     triposr_script: str | None = None,
     seed: int = 42,
-    use_img2img: bool = True,
+    use_img2img: bool = False,
     img2img_strength: float = 0.55,
     *,
     gender: str = "person",
@@ -178,18 +178,18 @@ def main():
         default=None,
         help="머리 색 (black, dark_brown, brown, blonde, red, gray 등). 미지정 시 추출값 사용",
     )
-    # 2D 생성: Img2Img(닮음) vs txt2img
+    # 2D 생성: 기본은 특징만 추출 후 txt2img. --img2img 시에만 실사 이미지를 init으로 사용
     parser.add_argument(
-        "--no-img2img",
+        "--img2img",
         action="store_true",
-        help="Img2Img 비활성화 (입력 사진 미사용, txt2img만 사용)",
+        help="입력 사진을 Img2Img 초기 이미지로 사용 (미사용 시 실사는 특징 추출만, 생성은 txt2img)",
     )
     parser.add_argument(
         "--strength",
         type=float,
         default=0.55,
         metavar="F",
-        help="Img2Img strength 0~1. 낮을수록 입력 사진 유지, 높을수록 프롬프트 반영. 기본 0.55",
+        help="--img2img 사용 시 strength 0~1. 낮을수록 사진 유지. 기본 0.55",
     )
     # 파이프라인 스킵
     parser.add_argument("--no-sd", action="store_true", help="2D 생성 생략 (기존 이미지 사용)")
@@ -208,7 +208,7 @@ def main():
         skip_render=args.no_render,
         triposr_script=args.triposr,
         seed=args.seed,
-        use_img2img=not args.no_img2img,
+        use_img2img=args.img2img,
         img2img_strength=args.strength,
         gender=args.gender,
         age=args.age,

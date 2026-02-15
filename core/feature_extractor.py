@@ -10,7 +10,7 @@ from typing import Any
 
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
 # MediaPipe is optional; fallback to heuristic if not available
 try:
@@ -38,13 +38,14 @@ CLOTHING_COLORS = [
 
 
 def _load_image(path: str) -> np.ndarray:
-    """Load image as BGR numpy array."""
+    """Load image as BGR numpy array. EXIF 방향 적용해 세로/가로 보정."""
     path = Path(path)
     if not path.exists():
         raise FileNotFoundError(f"Input image not found: {path}")
-    img = cv2.imread(str(path))
-    if img is None:
-        img = np.array(Image.open(path).convert("RGB"))[:, :, ::-1]
+    # PIL로 열어 EXIF 방향 보정 후 BGR로 변환 (cv2.imread는 EXIF 무시함)
+    pil_img = Image.open(path).convert("RGB")
+    pil_img = ImageOps.exif_transpose(pil_img)
+    img = np.array(pil_img)[:, :, ::-1]
     return img
 
 
