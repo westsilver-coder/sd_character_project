@@ -1,16 +1,14 @@
 """
-2D SD-style character image generation using Stable Diffusion 1.5.
-Input: text prompt (from prompt_generator).
-Output: PNG in generated_2d/
-RTX 2080Ti (11GB) 안정 실행: 512x512, attention_slicing.
+2D SD 스타일 캐릭터 생성 (SD 1.5).
+입력 이미지를 init으로 쓰는 Img2Img로 닮은 캐릭터 생성. init_image 없으면 txt2img.
+RTX 2080Ti (11GB) 안정: 512x512, attention_slicing.
 """
 from pathlib import Path
 from typing import Optional
 
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionPipeline, StableDiffusionImg2ImgPipeline
 from PIL import Image
-
 
 DEFAULT_MODEL_ID = "runwayml/stable-diffusion-v1-5"
 DEFAULT_HEIGHT = 512
@@ -18,10 +16,11 @@ DEFAULT_WIDTH = 512
 DEFAULT_STEPS = 25
 DEFAULT_CFG = 7.5
 DEFAULT_SEED = 42
+# Img2Img: 입력 이미지 보존 정도. 낮을수록 닮음 유지, 높을수록 프롬프트 반영 큼
+DEFAULT_STRENGTH = 0.55
 
 
 def get_device() -> str:
-    """Return 'cuda' if available else 'cpu'."""
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -30,39 +29,79 @@ def load_pipeline(
     device: Optional[str] = None,
 ) -> StableDiffusionPipeline:
     device = device or get_device()
-
     pipe = StableDiffusionPipeline.from_pretrained(
         model_id,
         torch_dtype=torch.float16,
         safety_checker=None,
         local_files_only=True,
     )
-
     pipe = pipe.to(device)
-
-    # RTX 2080Ti 안정 세팅
     pipe.enable_attention_slicing()
     pipe.enable_vae_slicing()
-
     return pipe
 
+
+def load_img2img_pipeline(
+    model_id: str = DEFAULT_MODEL_ID,
+    device: Optional[str] = None,
+) -> StableDiffusionImg2ImgPipeline:
+    device = device or get_device()
+    pipe = StableDiffusionImg2ImgPipeline.from_pretrained(
+        model_id,
+        torch_dtype=torch.float16,
+        safety_checker=None,
+        local_files_only=True,
+    )
+    pipe = pipe.to(device)
+    pipe.enable_attention_slicing()
+    pipe.enable_vae_slicing()
+    return pipe
+
+
+def _preprocess_init_image(
+    image_path: str | Path,
+    width: int = DEFAULT_WIDTH,
+    height: int = DEFAULT_HEIGHT,
+) -> Image.Image:
+    """입력 사진을 512x512로 맞춤. 중앙 기준 크롭 후 리사이즈해서 얼굴이 들어가게."""
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Init image not found: {path}")
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    if w == width and h == height:
+        return img
+    # 비율 유지한 채 짧은 쪽을 height/width에 맞추고, 중앙 크롭
+    scale = min(width / w, height / h)
+    nw, nh = int(w * scale), int(h * scale)
+    img = img.resize((nw, nh), Image.Resampling.LANCZOS)
+    # 중앙에서 width x height 크롭
+    left = (nw - width) // 2
+    top = (nh - height) // 2
+    left = max(0, min(left, nw - width))
+    top = max(0, min(top, nh - height))
+    img = img.crop((left, top, left + width, top + height))
+    return img
 
 
 def generate(
     prompt: str,
     output_path: str | Path,
     *,
+    init_image: str | Path | None = None,
+    strength: float = DEFAULT_STRENGTH,
     negative_prompt: str | None = None,
     height: int = DEFAULT_HEIGHT,
     width: int = DEFAULT_WIDTH,
     num_inference_steps: int = DEFAULT_STEPS,
     guidance_scale: float = DEFAULT_CFG,
     seed: Optional[int] = DEFAULT_SEED,
-    pipeline: Optional[StableDiffusionPipeline] = None,
+    pipeline=None,
 ) -> str:
     """
-    Generate one SD-style 2D character image and save to output_path.
-    Returns absolute path to saved PNG.
+    캐릭터 이미지 생성.
+    init_image가 있으면 Img2Img로 입력 이미지의 얼굴·구도를 반영해 닮은 캐릭터 생성.
+    없으면 txt2img만 사용.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -72,22 +111,35 @@ def generate(
         negative_prompt = get_negative_prompt()
 
     device = get_device()
-    if pipeline is None:
-        pipeline = load_pipeline(device=device)
+    use_img2img = init_image is not None
 
-    generator = None
-    if seed is not None:
-        generator = torch.Generator(device=device).manual_seed(seed)
-
-    image: Image.Image = pipeline(
-        prompt,
-        negative_prompt=negative_prompt,
-        height=height,
-        width=width,
-        num_inference_steps=num_inference_steps,
-        guidance_scale=guidance_scale,
-        generator=generator,
-    ).images[0]
+    if use_img2img:
+        init_pil = _preprocess_init_image(init_image, width=width, height=height)
+        if pipeline is None:
+            pipeline = load_img2img_pipeline(device=device)
+        generator = torch.Generator(device=device).manual_seed(seed) if seed is not None else None
+        image = pipeline(
+            prompt=prompt,
+            image=init_pil,
+            strength=strength,
+            negative_prompt=negative_prompt,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            generator=generator,
+        ).images[0]
+    else:
+        if pipeline is None:
+            pipeline = load_pipeline(device=device)
+        generator = torch.Generator(device=device).manual_seed(seed) if seed is not None else None
+        image = pipeline(
+            prompt,
+            negative_prompt=negative_prompt,
+            height=height,
+            width=width,
+            num_inference_steps=num_inference_steps,
+            guidance_scale=guidance_scale,
+            generator=generator,
+        ).images[0]
 
     out_file = output_path if output_path.suffix else output_path.with_suffix(".png")
     image.save(str(out_file), "PNG")

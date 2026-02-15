@@ -28,8 +28,11 @@ def run_pipeline(
     skip_render: bool = False,
     triposr_script: str | None = None,
     seed: int = 42,
+    use_img2img: bool = True,
+    img2img_strength: float = 0.55,
     *,
     gender: str = "person",
+    age: str = "adult",
     clothing_type: str | None = None,
     upper_color: str | None = None,
     lower_color: str | None = None,
@@ -41,7 +44,7 @@ def run_pipeline(
     gender/의상/헤어는 CLI에서 지정. 지정 안 하면 사진 추출값 사용(auto).
     """
     from core.feature_extractor import extract_and_save
-    from core.prompt_generator import generate_prompt
+    from core.prompt_generator import generate_prompt, get_negative_prompt
     from core.sd_generator import generate
     from core.mesh_generator import image_to_mesh
     from core.deform_sd import load_deform_export
@@ -60,7 +63,7 @@ def run_pipeline(
     result["features"] = features_path
 
     # 2) Prompt generation (CLI 옵션으로 덮어쓰기)
-    overrides = {"gender": gender}
+    overrides = {"gender": gender, "age": age}
     if clothing_type is not None and clothing_type != "auto":
         overrides["clothing_type"] = clothing_type
     if upper_color is not None:
@@ -73,11 +76,19 @@ def run_pipeline(
         overrides["hair_color"] = hair_color
     prompt = generate_prompt(features_path, overrides)
     result["prompt"] = prompt
+    negative_prompt = get_negative_prompt(overrides)
 
-    # 3) 2D SD character
+    # 3) 2D 캐릭터 (기본: 입력 사진 Img2Img로 닮은 캐릭터 생성)
     if not skip_sd:
         img_2d = output_dir_2d / "character.png"
-        generate(prompt, img_2d, seed=seed)
+        generate(
+            prompt,
+            img_2d,
+            init_image=str(input_photo) if use_img2img else None,
+            strength=img2img_strength,
+            seed=seed,
+            negative_prompt=negative_prompt,
+        )
         result["image_2d"] = str(img_2d.resolve())
     else:
         img_2d = output_dir_2d / "character.png"
@@ -129,6 +140,12 @@ def main():
         default="person",
         help="캐릭터 성별 (male/female/person). 기본: person",
     )
+    parser.add_argument(
+        "--age",
+        choices=["teen", "young_adult", "adult", "middle_aged"],
+        default="adult",
+        help="나이대 (teen/young_adult/adult/middle_aged). 기본: adult",
+    )
     # 의상 옵션 (사진이 애매할 때 지정)
     parser.add_argument(
         "--clothing-type",
@@ -161,6 +178,19 @@ def main():
         default=None,
         help="머리 색 (black, dark_brown, brown, blonde, red, gray 등). 미지정 시 추출값 사용",
     )
+    # 2D 생성: Img2Img(닮음) vs txt2img
+    parser.add_argument(
+        "--no-img2img",
+        action="store_true",
+        help="Img2Img 비활성화 (입력 사진 미사용, txt2img만 사용)",
+    )
+    parser.add_argument(
+        "--strength",
+        type=float,
+        default=0.55,
+        metavar="F",
+        help="Img2Img strength 0~1. 낮을수록 입력 사진 유지, 높을수록 프롬프트 반영. 기본 0.55",
+    )
     # 파이프라인 스킵
     parser.add_argument("--no-sd", action="store_true", help="2D 생성 생략 (기존 이미지 사용)")
     parser.add_argument("--no-3d", action="store_true", help="2D→3D 변환 생략")
@@ -178,7 +208,10 @@ def main():
         skip_render=args.no_render,
         triposr_script=args.triposr,
         seed=args.seed,
+        use_img2img=not args.no_img2img,
+        img2img_strength=args.strength,
         gender=args.gender,
+        age=args.age,
         clothing_type=args.clothing_type,
         upper_color=args.upper_color,
         lower_color=args.lower_color,

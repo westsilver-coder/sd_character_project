@@ -9,20 +9,28 @@ from typing import Any
 
 # CLI에서 쓸 수 있는 옵션 값 (overrides)
 GENDER_CHOICES = ("male", "female", "person")
+AGE_CHOICES = ("teen", "young_adult", "adult", "middle_aged")
 CLOTHING_TYPE_CHOICES = ("auto", "dress", "skirt", "pants", "shorts", "top_only")
 HAIR_LENGTH_CHOICES = ("auto", "short", "medium", "long")
 
-
-# 스타일: 과한 SD/인형 느낌 X, 애니·웹툰 정도 비율
+# 1인 전신, 중앙 배치, 과한 데포르메 X
 BASE_PARTS = [
-    "anime style full body character",
-    "webtoon style proportions",
-    "moderate head to body ratio, not chibi",
-    "standing pose",
+    "one person only, single character",
+    "full body, standing, full length",
+    "person centered in frame",
+    "moderate proportions, natural head to body ratio, not chibi",
     "clean neutral background",
     "3D render style",
     "soft lighting",
 ]
+
+# 나이대 → 프롬프트
+AGE_PROMPT = {
+    "teen": "teenager",
+    "young_adult": "young adult",
+    "adult": "adult",
+    "middle_aged": "middle-aged",
+}
 
 # 얼굴: 형태 구별 안 함, 예쁘게/잘 나오게
 FACE_PROMPT = "pretty face, well-proportioned facial features"
@@ -42,15 +50,15 @@ HAIR_COLOR_PROMPT = {
     "other": "natural hair color",
 }
 
-# 남성 헤어스타일 (구체적)
+# 남성 헤어스타일 (short는 반드시 짧게 명시)
 HAIR_STYLE_MALE = {
-    "short": "short neat hair, natural look",
-    "medium": "medium length hair, natural wave",
+    "short": "short hair, hair above ears, hair above neck, short neat hair, not long",
+    "medium": "medium length hair, natural wave, hair to shoulders",
     "long": "long hair, natural wave",
 }
-# 여성 헤어스타일 (구체적): 숏컷, 앞머리 유무, 긴머리/중단발/어깨까지 등
+# 여성 헤어스타일
 HAIR_STYLE_FEMALE = {
-    "short": "short cut hair, natural hair texture",
+    "short": "short hair, short cut, hair above shoulders, hair above neck, not long hair",
     "medium": "shoulder length hair, natural hair texture",
     "long": "long hair, natural hair texture, fine hair details",
 }
@@ -116,14 +124,18 @@ def build_prompt(features: dict[str, Any], overrides: dict[str, Any] | None = No
     merged = _apply_overrides(features, overrides)
     parts = list(BASE_PARTS)
 
-    # 성인 + 성별 (CLI에서만 지정, 기본 person)
+    # 나이대 (CLI, 기본 adult)
+    age = merged.get("age", "adult")
+    age_desc = AGE_PROMPT.get(age, "adult")
+
+    # 성별 + 나이
     gender = merged.get("gender", "person")
     if gender == "male":
-        parts.append("adult man")
+        parts.append(f"{age_desc} man")
     elif gender == "female":
-        parts.append("adult woman")
+        parts.append(f"{age_desc} woman")
     else:
-        parts.append("adult person")
+        parts.append(f"{age_desc} person")
 
     parts.append(FACE_PROMPT)
     parts.append(EYE_PROMPT)
@@ -169,11 +181,13 @@ def build_prompt(features: dict[str, Any], overrides: dict[str, Any] | None = No
     return ", ".join(parts)
 
 
-def get_negative_prompt() -> str:
-    """강화된 네거티브 프롬프트: 큰 대가리, 덩어리 머리, 인형/요정, 상의 누락 등."""
-    return (
+def get_negative_prompt(overrides: dict[str, Any] | None = None) -> str:
+    """강화된 네거티브: 9컷/그리드 방지, 큰 대가리, 덩어리 머리, 상의 누락 등. hair_length=short면 장발 강하게 배제."""
+    base = (
         "ugly, blurry, low quality, distorted, deformed, "
-        "multiple characters, cropped, bad anatomy, text, watermark, "
+        "multiple characters, multiple people, grid, 9 panels, 3x3, collage, several figures, "
+        "cropped, bad anatomy, text, watermark, "
+        "bust portrait, upper body only, head and shoulders only, "
         "huge head, oversized head, big head, bloated face, round blob head, "
         "chunky hair, blocky hair, hair blob, "
         "doll, fairy, wings, tutu, child, baby, toddler, "
@@ -181,6 +195,10 @@ def get_negative_prompt() -> str:
         "ugly face, deformed face, bad proportions, "
         "extreme chibi, super deformation, toy like"
     )
+    # short 지정 시 장발/중단발 강하게 배제
+    if overrides and overrides.get("hair_length") == "short":
+        base += ", long hair, shoulder length hair, medium length hair, hair past shoulders"
+    return base
 
 
 def generate_prompt(

@@ -17,9 +17,9 @@ input photo → feature extraction → features.json
      → Turntable rendering → 3D avatar + mp4
 ```
 
-1. **Feature Extraction**: 얼굴형, 머리색, 피부톤, 안경, 머리 길이, **의상 색상·종류**(상의색, 하의색, dress/skirt/pants 등) → `features/features.json`
+1. **Feature Extraction**: 얼굴형, 머리색, 피부톤, 안경, 머리 길이, **의상 색상·종류** → `features/features.json`
 2. **Prompt Generation**: 특징 기반 SD 프롬프트 자동 생성 (규칙 기반)
-3. **2D 생성**: Stable Diffusion 1.5로 전신 SD 스타일 이미지 → `generated_2d/` (512×512, RTX 2080Ti 안정)
+3. **2D 생성**: **입력 사진을 초기 이미지로 쓰는 Img2Img**로, 사진 속 인물을 닮은 전신 캐릭터 생성 → `generated_2d/` (512×512)
 4. **2D→3D**: 이미지 → mesh (.obj). TripoSR 연동 시 실제 복원, 없으면 placeholder
 5. **SD 변형**: head scale 1.5~1.7, body scale 0.6~0.8 (geometry 수정)
 6. **Turntable**: 360° 회전 mp4 → `renders/`
@@ -35,7 +35,7 @@ input photo → feature extraction → features.json
 | **1** | `main.py` | 전체 단계(1→2→…→6)와 입출력 경로 한눈에 파악 |
 | **2** | `core/feature_extractor.py` | 입력 사진 → 얼굴 bbox, 머리/피부/의상 색, 안경/머리길이, 의상 종류 → `features.json` |
 | **3** | `core/prompt_generator.py` | `features.json` → 규칙으로 SD용 프롬프트 문자열 생성 |
-| **4** | `core/sd_generator.py` | 프롬프트 → SD 1.5로 2D 전신 SD 캐릭터 이미지 생성 (512×512) |
+| **4** | `core/sd_generator.py` | 입력 사진 + 프롬프트 → Img2Img로 닮은 2D 전신 캐릭터 생성 |
 | **5** | `core/mesh_generator.py` | 2D 이미지 → TripoSR(선택) 또는 placeholder → .obj mesh |
 | **6** | `core/deform_sd.py` | mesh를 head/body 구간으로 나누어 SD 비율(헤드 확대, 바디 축소) 적용 |
 | **7** | `core/renderer.py` | mesh 360° 회전 프레임 생성 → imageio로 mp4 저장 |
@@ -70,6 +70,14 @@ input photo → feature extraction → features.json
 
 - **여러 장 입력**: 현재는 1장만 읽습니다. 멀티뷰/멀티포즈 미지원.
 - **정면 전신 필수 아님**: 전신이어도 되고, 상반신/얼굴만 있어도 동작합니다.
+
+### 입력 사진으로 “닮은” 캐릭터 만들기
+
+- **2D 생성 단계**에서는 입력 사진을 **Img2Img의 초기 이미지**로 사용합니다.  
+  즉, **사진의 얼굴·구도가 반영된 상태**에서 프롬프트(스타일, 의상, 헤어 등)가 적용되어 **닮은 캐릭터**가 나오도록 되어 있습니다.
+- **추가로** 사진에서 머리색·피부톤·의상 색·머리 길이 등을 추출해 **텍스트 프롬프트**에도 넣어, 특징이 더 잘 반영되게 합니다.
+- 닮음 정도는 `--strength`로 조절할 수 있습니다. **낮을수록** 입력 사진에 가깝고, **높을수록** 프롬프트/스타일 반영이 커집니다. 기본값은 0.55입니다.
+- Img2Img를 쓰지 않고 텍스트만으로 생성하려면 `--no-img2img` 옵션을 주면 됩니다.
 
 ---
 
@@ -146,13 +154,19 @@ python -m core.renderer generated_3d/character_sd.obj renders/turntable.mp4
 
 ### 옵션 (main.py)
 
-**성별·의상·헤어 (사진이 애매할 때 지정)**
+**성별·나이·의상·헤어 (사진이 애매할 때 지정)**
 
-- `--gender {male,female,person}` : 캐릭터 성별. **필수 지정 권장** (사진으로 추정하지 않음). 기본: person
+- `--gender {male,female,person}` : 캐릭터 성별. 기본: person
+- `--age {teen,young_adult,adult,middle_aged}` : 나이대. 기본: adult
 - `--clothing-type {auto,dress,skirt,pants,shorts,top_only}` : 의상 종류. auto=사진에서 추출
 - `--upper-color`, `--lower-color` : 상의/하의 색 (white, black, navy, blue 등)
 - `--hair-length {auto,short,medium,long}` : 머리 길이. auto=사진에서 추출
 - `--hair-color` : 머리 색 (black, dark_brown, brown, blonde, red, gray 등)
+
+**2D 생성 (닮음)**
+
+- `--no-img2img` : Img2Img 비활성화 (입력 사진 미사용, txt2img만)
+- `--strength F` : Img2Img strength 0~1. 낮을수록 사진 유지. 기본 0.55
 
 **파이프라인**
 
